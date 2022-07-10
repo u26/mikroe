@@ -1,0 +1,251 @@
+#include "iqs550.h"
+
+
+IQS550::IQS550(int rdy, int rst){
+
+  // RESET
+  pin_rdy = rdy;
+  pin_rst = rst;
+  
+  pinMode( pin_rdy, INPUT_PULLUP);
+  pinMode( pin_rst, OUTPUT);
+  //touch5_reset();
+}
+
+IQS550::~IQS550(){
+    
+}
+
+
+void IQS550::readReg(uint8_t reg, uint8_t* rx_buf, int len, boolean _stop)
+{
+    // wait RDY
+    while(!digitalRead(pin_rdy));
+    
+    Wire.beginTransmission(_slave_address);
+    Wire.write( reg );
+    Wire.endTransmission(false); 
+
+    Wire.requestFrom( _slave_address, len, false);
+    while( Wire.available() ){
+        *rx_buf = Wire.read();
+        rx_buf++;
+    }
+    Wire.endTransmission(_stop); 
+}
+
+
+void IQS550::writeReg(uint8_t reg, uint8_t* tx_buf, int len, boolean _stop)
+{
+    uint16_t dt=0;
+
+    // wait RDY
+    while(!digitalRead(pin_rdy));
+
+    Wire.beginTransmission(_slave_address);
+    Wire.write( reg );
+    for(int i=0; i< len; i++){
+      Wire.write(tx_buf[i]);
+    }
+    Wire.endTransmission(true); 
+//    delay(30);
+}
+
+void IQS550::touchpad5_channel_setup() 
+{
+    uint8_t tx_buf[ 7 ];
+    
+    tx_buf[ 0 ] =10;
+    tx_buf[ 1 ] = 13;
+    tx_buf[ 2 ] = 10;
+    tx_buf[ 3 ] = 10;
+    tx_buf[ 4 ] = 0;
+    //tx_buf[ 4 ] = TOUCHPAD5_CHARGE_TYPE_SELF_CHARG;
+    tx_buf[ 5 ] = 0;
+    tx_buf[ 6 ] = 0;
+//    tx_buf[ 4 ] = TOUCHPAD5_CHARGE_MUTUAL_SELF_CHARG |
+//                  TOUCHPAD5_RX_GROUP_RXB |
+//                  TOUCHPAD5_SUM_OF_TP_TX;
+//    tx_buf[ 5 ] = TOUCHPAD5_TX_HIGH_DFLT;
+//    tx_buf[ 6 ] = TOUCHPAD5_TX_LOW_DFLT;
+    
+   writeReg( TOUCHPAD5_CMD_CHANNEL_SETUP, tx_buf, 7 );
+}
+
+
+
+void IQS550::touchpad5_control_setup() 
+{
+    uint8_t tx_buf[ 2 ];
+    tx_buf[ 0 ] = TOUCHPAD5_AUTO_ATI|
+                  TOUCHPAD5_TRACKPAD_RESEED;
+    tx_buf[ 1 ] = 0;
+//    tx_buf[ 1 ] = TOUCHPAD5_SNAP_EN;
+
+    writeReg( TOUCHPAD5_CMD_CONTROL_SETTINGS, tx_buf, 2 );
+}
+
+void IQS550::touchpad5_threshold_setup() 
+{
+    uint8_t tx_buf[ 8 ];
+        
+    tx_buf[ 0 ] =10;
+//    tx_buf[ 1 ] = 25;
+//    tx_buf[ 2 ] = 5;
+    tx_buf[ 1 ] = 5;      // multifier
+    tx_buf[ 2 ] = 7;     // shifter
+    tx_buf[ 3 ] = 10;
+    tx_buf[ 4 ] = 0;
+    tx_buf[ 5 ] =0;
+    
+    writeReg( TOUCHPAD5_CMD_THRESHOLD_SETTINGS, tx_buf, 6 );
+}
+
+void IQS550::getTouch( touchpad5_touch_t *t ) 
+{
+    uint8_t rx_buf[ 8 ];
+    
+    readReg( TOUCHPAD5_CMD_XY_DATA, rx_buf, 8, true );
+
+    t->xy_info = rx_buf[ 0 ];
+    t->no_of_fingers = rx_buf[ 0 ] & TOUCHPAD5_NO_OF_FINGERS; 
+    t->id_tag = rx_buf[ 1 ];
+    t->x_pos = ( ( ( uint16_t )  rx_buf[ 2 ] ) << 8 ) | rx_buf[ 3 ];
+    t->y_pos = ( ( ( uint16_t )  rx_buf[ 4 ] ) << 8 ) | rx_buf[ 5 ];
+    t->touch_strength = ( ( ( uint16_t )  rx_buf[ 6 ] ) << 8 ) | rx_buf[ 7 ];
+/*
+  if( t->x_pos > 0 && 
+      t->y_pos > 0 && 
+      t->touch_strength > TOUCH_STRENGTH_THRESHOLD
+    ){
+
+//      char buf[64];
+//      sprintf(buf, "{\"x\":%d,\"y\":%d, %d}", t.x_pos, t.y_pos, t.touch_strength);
+//      Serial.println(buf);
+      Serial.print("x: "); 
+      Serial.print(t->x_pos); 
+      Serial.print("  y: "); 
+      Serial.print(t->y_pos); 
+      Serial.print("  strength: "); 
+      Serial.print(t->touch_strength); 
+      Serial.print("  fingers: "); 
+      Serial.print(t->no_of_fingers); 
+      Serial.print("  info: "); 
+      Serial.println(t->xy_info,HEX); 
+  
+      if(t->xy_info & TOUCHPAD5_NOISE_STATUS){
+        Serial.println("NOISE");
+      }
+      if( t->xy_info & TOUCHPAD5_SHOW_RESET ){
+        Serial.println("RESET"); 
+      }
+  }
+*/    
+}
+
+void IQS550::calcTouchDelta( touchpad5_touch_t *t, position_t* delta ) 
+{
+  int16_t dx,dy=0;
+  char buf[64]={0};
+          
+  switch(state){
+
+    case ST_PRELEASED:
+
+      if(t->x_pos != 0 && t->y_pos != 0){
+        if( t->touch_strength > TOUCH_STRENGTH_THRESHOLD ){
+            
+//          Serial.println("[PRESSED]");
+          state = ST_PRESSED;
+          old_pos.x = t->x_pos;
+          old_pos.y = t->y_pos;        
+        }
+      }
+      sprintf(buf, "{\"x\":%d,\"y\":%d}",dx, dy);
+      Serial.println(buf);     
+      break;
+      
+    case ST_PRESSED:
+
+      if( t->touch_strength < TOUCH_STRENGTH_THRESHOLD){
+
+//        Serial.println("[RELEASED]");
+        state = ST_WAIT;
+        old_pos.x = 0;
+        old_pos.y = 0;
+        
+      }else{
+        
+        dx = t->x_pos - old_pos.x;
+        dy = t->y_pos - old_pos.y;
+
+
+        sprintf(buf, "{\"x\":%d,\"y\":%d}",dx, -dy);
+        Serial.println(buf);        
+
+        old_pos.x = t->x_pos;
+        old_pos.y = t->y_pos;
+      }
+      break;
+
+    case ST_WAIT:
+      state = ST_PRELEASED;
+      sprintf(buf, "{\"x\":%d,\"y\":%d}",dx, dy);
+      Serial.println(buf);     
+      break;
+      
+    default:
+      break;    
+  }
+
+
+  
+  switch(state){
+    case ST_PRESSED:
+      break;
+    default:
+      break;
+  }
+}
+
+
+
+void IQS550::touch5_reset()
+{
+  // RESET
+  digitalWrite(pin_rst, LOW);
+  delay(1000);
+  digitalWrite(pin_rst, HIGH);
+  delay(2000);
+}
+
+
+void IQS550::touchpad5_init()
+{
+ 
+  touchpad5_channel_setup();
+  delay(1000);
+  
+  // SETTINGS
+  uint8_t tx_buf[1]= { TOUCHPAD5_ACK_RESET };
+  writeReg(TOUCHPAD5_CMD_CONTROL_SETTINGS,tx_buf, 1, true);
+  delay(1000);
+
+  touchpad5_control_setup();
+  delay(1000);
+
+  touchpad5_threshold_setup();
+  delay(1000);
+
+
+  uint8_t rx_buf[16] = {0};
+  readReg( TOUCHPAD5_CMD_VERSION_INFO, rx_buf, 10, true );
+  readReg( TOUCHPAD5_CMD_CONTROL_SETTINGS, rx_buf, 2, true );
+  readReg( TOUCHPAD5_CMD_THRESHOLD_SETTINGS, rx_buf, 6, true );
+}
+
+void IQS550::setup()
+{
+  touch5_reset();
+  touchpad5_init();
+}
