@@ -11,7 +11,7 @@ static final int DEV_TOUCHPAD5 = 2;
 int device = DEV_MOUSE;    // << select device
 //-----------------------------------------------------
 
-float scale;
+float scale=0.5;
 //int scale;
 int FLICK_THRESOULD_NOISE;
 
@@ -80,7 +80,7 @@ void setup(){
    
   Ani.init(this);
   
-
+  background(50,50,50,200);
 }
 
 
@@ -89,7 +89,7 @@ void setup(){
 
 void draw(){
 
-  background(50,50,50,200);
+  //background(50,50,50,200);
   
   //  color c = color(255, 204, 0);
 
@@ -113,6 +113,7 @@ void draw(){
         JSONObject json = parseJSONObject(s);
         int dx = json.getInt("x");   
         int dy = json.getInt("y");
+        int strength = json.getInt("strength");
 
         if( !(dx==0 && dy==0)){
             print(s);
@@ -120,7 +121,11 @@ void draw(){
         push();
         fill(255);
         noStroke();
-        circle(dx,dy,10);
+        translate( dx * scale, 
+               dy * scale );
+      
+        circle(0,0,10);
+       // circle(dx,dy,10);
         pop();
         
       }catch(Exception ex){
@@ -129,23 +134,5 @@ void draw(){
     }
     s = null;
   }
-  
-  // Draw Points
-  //push();
 
-  //fill(255);
-  //noStroke();
-  //for(int i=0; i<pts.size(); i++){
-    
-  //  translate( dx * scale, 
-  //             dy * scale );
-      
-  //  circle(0,0,10);
-  //}
-  
-  //pop();
-
-  //textSize(20);
-  //text( "dx sum: " + pt_sum.x, 40, sh+lh*(++i)); 
- 
 } 

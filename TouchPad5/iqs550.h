@@ -309,10 +309,12 @@ class IQS550{
 #define TOUCHPAD5_IQS550_PRODUCT_NUMBER         40
 
 
-#define TOUCH_STRENGTH_THRESHOLD             (100)
-#define ST_PRELEASED 0
+//#define TOUCH_THRESHOLD             (1600)
+#define TOUCH_THRESHOLD             (1200)
+
+#define ST_RELEASED 0
 #define ST_PRESSED   1
-#define ST_WAIT      2
+#define ST_TOUCH      2
   
 
   
@@ -338,9 +340,9 @@ public:
       uint8_t   xy_info;             /**< Status bytes, and indicates the total number of active co-ordinates. */
       uint8_t   no_of_fingers;       /**< Number of touches + hovers. */
       uint8_t   id_tag;              /**< Identify a specific co-ordinate. */
-      uint16_t  x_pos;               /**< X Position. */
-      uint16_t  y_pos;               /**< Y Position. */
-      uint16_t  touch_strength;      /**< Touch Strength – indicates the „hardness‟ of this touch. */
+      int16_t  x_pos;               /**< X Position. */
+      int16_t  y_pos;               /**< Y Position. */
+      int16_t  touch_strength;      /**< Touch Strength – indicates the „hardness‟ of this touch. */
   
   } touchpad5_touch_t;
 
@@ -393,12 +395,20 @@ public:
   void setup(); 
   void getTouch( touchpad5_touch_t *touch_data );
   void calcTouchDelta( touchpad5_touch_t *touch, position_t* delta );
+  void getSnapStatus();
 
 private:
 
   touchpad5_touch_t touch_old;
   position_t old_pos;
-  int state = ST_PRELEASED;
+  int state = ST_RELEASED;
+
+  // lowpass filter(RC Filter)
+  //a = 1/(2π･fc･dt + 1)      fc [Hz]  dt[s] sampling cycle
+  #define a 0.8     // 0 < a < 1.0(strong)
+  float rc_x=0;          
+  float rc_y=0;          
+
 
   void touchpad5_init();
   void touch5_reset();

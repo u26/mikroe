@@ -9,18 +9,21 @@ static final int DEV_MOUSE =0;
 static final int DEV_TOUCHPAD = 1;
 static final int DEV_TOUCHPAD5 = 2;
 
-int device = DEV_TOUCHPAD;    // << select device
+int device = DEV_TOUCHPAD5;    // << select device
 String txt_device = "MOUSE";
 int pos_dispx;
 //-----------------------------------------------------
 
-ControlP5 bt_mouse;
-ControlP5 bt_touchpad;
-ControlP5 bt_touchpad5;
+//ControlP5 bt_mouse;
+//ControlP5 bt_touchpad;
+//ControlP5 bt_touchpad5;
 
-
-float scale;
-int FLICK_THRESOULD_NOISE;
+Slider slider_click;
+Slider slider_click_time;
+Slider slider_fric_limit;
+Slider slider_fric_time;
+float scale=1;
+//int FLICK_THRESOULD_NOISE;
 
 
 Serial serial;      
@@ -28,11 +31,17 @@ Serial serial;
 int FLICK_RELEASE_JUDGE_CNT = 10;  //n * 10ms(sensor tx interval)
 int FLICK_WAIT_MS = 100;
 
+
 //int sx;
 //int sy;
 Point pt_sum = new Point();
+Point pt_release = new Point();
+
 String dir = new String();
 String tx_dir = new String();
+
+Point pt_move = new Point();
+
 
 long st_time;
 float deg = 0;
@@ -46,14 +55,21 @@ class Point{
   Point(){
     this.x = 0;
     this.y = 0;
+    strength = 0;
+    long t;
   }
-  Point(int x, int y){
+  Point(int x, int y, int strength){
     this.x = x;
     this.y = y;
+    this.strength = strength;
+    this.t = millis();
   }
   
   int x;
   int y;
+  int strength;
+  int t;
+  
 }
 
 ArrayList<Point> pts = new ArrayList<Point>();
@@ -62,7 +78,7 @@ enum ST_FLICK {
   IDLE,
   PRESS,
   RELEASE,
-  WAITING,
+  LONG_PRESS,
 }
 
 ST_FLICK st_flick = ST_FLICK.IDLE;
@@ -84,54 +100,58 @@ void setup(){
   serial.readStringUntil(lf);
    
   Ani.init(this);
-  
+
   pos_dispx = width-180;
-  bt_mouse = new ControlP5(this);
-  bt_mouse.addButton("bt_mouse_clikced")
-          .setLabel("MOUSE SENSOR")
-          .setPosition(pos_dispx, 60)
-          .setSize(120, 30);
+  //bt_mouse = new ControlP5(this);
+  //bt_mouse.addButton("bt_mouse_clikced")
+  //        .setLabel("MOUSE SENSOR")
+  //        .setPosition(pos_dispx, 60)
+  //        .setSize(120, 30);
  
-  bt_touchpad = new ControlP5(this);
-  bt_touchpad.addButton("bt_touchpad_clikced")
-          .setLabel("TouchPad")
-          .setPosition(pos_dispx, 100)
-          .setSize(120, 30);
+  //bt_touchpad = new ControlP5(this);
+  //bt_touchpad.addButton("bt_touchpad_clikced")
+  //        .setLabel("TouchPad")
+  //        .setPosition(pos_dispx, 100)
+  //        .setSize(120, 30);
  
-  bt_touchpad5 = new ControlP5(this);
-  bt_touchpad5.addButton("bt_touchpad5_clikced")
-          .setLabel("IQS550")
-          .setPosition(pos_dispx, 140)
-          .setSize(120, 30);
+  //bt_touchpad5 = new ControlP5(this);
+  //bt_touchpad5.addButton("bt_touchpad5_clikced")
+  //        .setLabel("IQS550")
+  //        .setPosition(pos_dispx, 140)
+  //        .setSize(120, 30);
           
-  bt_mouse_clikced();
+  //bt_mouse_clikced();
 
 
-}
-
-void bt_touchpad5_clikced(){
+  // limit
+  int row = 30;
+  int y_pos = 100;
+  ControlP5 cp5 = new ControlP5(this);
+  slider_click = cp5.addSlider("CLICK  LIMIT")
+   .setPosition(pos_dispx, y_pos)
+   .setSize(100,20)
+   .setRange(0,1024)
+   .setValue(100); 
+   
+  slider_click_time = cp5.addSlider("CLICK  TIME")
+   .setPosition(pos_dispx, y_pos+row*1)
+   .setSize(100,20)
+   .setRange(0,2000)
+   .setValue(500);    
   
-  device = DEV_TOUCHPAD5;
-  txt_device = "TouchPad5";
-  scale = 0.3;  
-  FLICK_THRESOULD_NOISE = 300;
-}
+  slider_fric_limit = cp5.addSlider("FRIC  LIMIT")
+   .setPosition(pos_dispx,y_pos+row*2)
+   .setSize(100,20)
+   .setRange(0,1024)
+   .setValue(100); 
 
-void bt_touchpad_clikced(){
+  slider_fric_time = cp5.addSlider("FRIC  TIME")
+   .setPosition(pos_dispx,y_pos+row*3)
+   .setSize(100,20)
+   .setRange(0,1024)
+   .setValue(150); 
 
-  device = DEV_TOUCHPAD;
-  txt_device = "TouchPad";
-  scale = 10;
-  FLICK_THRESOULD_NOISE = 5;
 
-}
-
-void bt_mouse_clikced(){
-
-  device = DEV_MOUSE;
-  txt_device = "MOUSE";
-  scale = 0.5;  
-  FLICK_THRESOULD_NOISE = 80;
 }
 
 //////////////////////////////////////////////////////
@@ -160,10 +180,10 @@ void draw(){
 
   //rectMode(CENTER);
   //rect(0,0, FLICK_THRESOULD_NOISE*2, FLICK_THRESOULD_NOISE*2);
-  circle(0,0,(FLICK_THRESOULD_NOISE*scale)*2);
+  circle(0,0,(slider_fric_limit.getValue()*scale)*2);
   
+  //float th = slider_click_area.getValue();
   while (serial.available() > 0) {
-
 
     s = serial.readStringUntil(lf);
     
@@ -173,12 +193,15 @@ void draw(){
         JSONObject json = parseJSONObject(s);
         int dx = json.getInt("x");   
         int dy = json.getInt("y");
+        int status = json.getInt("status");
+        int strength = json.getInt("strength");
 
-        if( !(dx==0 && dy==0)){
+        if( status > 0){
             print(s);
         }
-        flick(dx,dy);
-       
+
+        flick(dx, dy, status, strength);
+      
       }catch(Exception ex){
       
       } 
@@ -195,15 +218,22 @@ void draw(){
     
     translate( pts.get(i).x*scale, 
                pts.get(i).y*scale );
-      
+    
+    if( st_flick == ST_FLICK.IDLE ){
+      if( i >= release_idx){
+        fill(0, 255,200);
+      }
+    }
     circle(0,0,10);
   }
   pop();
 
-  // delta position
-  stroke(color(255, 200,0));
-  strokeWeight(4);
-  //Point pt = deltaPoint();
+  stroke(color(0, 255,200));
+  strokeWeight(2);
+  line(0, 0, pt_release.x*scale, pt_release.y*scale);
+
+  stroke(color(255));
+  strokeWeight(2);
   line(0, 0, pt_sum.x*scale, pt_sum.y*scale);
 
   popMatrix();
@@ -212,7 +242,7 @@ void draw(){
   fill(255);
 
   textSize(18);
-  text( txt_device, pos_dispx, 40);
+  text( "IQS550", pos_dispx, 40);
 
   int lh = 30;
   int sh = 40;
@@ -229,8 +259,8 @@ void draw(){
  
   if(st_flick == ST_FLICK.RELEASE){
     text( "RELEASE", 40, sh+lh*(++i));
-  }else if(st_flick == ST_FLICK.WAITING){
-    text( "WAIT", 40, sh+lh*(++i));
+  }else if(st_flick == ST_FLICK.LONG_PRESS){
+    text( "LONG_PRESS", 40, sh+lh*(++i));
   }else if(st_flick == ST_FLICK.PRESS){
     text( "PRESS", 40, sh+lh*(++i));
   }else{
@@ -240,127 +270,222 @@ void draw(){
   text( "Right: " + cnt[1], 40,sh+lh*(++i));
   text( "UP:    " + cnt[2], 40,sh+lh*(++i));
   text( "DOWN:  " + cnt[3], 40,sh+lh*(++i));
-  text( "noise: " + cnt[4], 40,sh+lh*(++i));
+  text( "Click: " + cnt[4], 40,sh+lh*(++i));
  
-} 
+ } 
+
+int release_idx = 0;
+long release_dt = 0; 
+long click_dt = 0; 
 
 
-void deltaPoint(){
+void cal_sum(){
 
   pt_sum.x = 0;
   pt_sum.y = 0;
+  pt_move.x = 0;
+  pt_move.y = 0;
+  pt_release.x=0;
+  pt_release.y=0;
+  
+  int sz = pts.size()-1;
+  int max_strength = 0;
+  release_idx = sz;
 
-  for(int i=0; i<pts.size(); i++){
+  for(int i=sz; i>=0; i--){
+    
+    int s = pts.get(i).strength;
+    if( max_strength < s ){
+      max_strength = s;
+    }else{
+      release_idx = i+1;
+      println("MAX:"+ max_strength + " max_idx:"+release_idx);
+      break;
+    }
+  }
+  
+  for(int i=release_idx; i<=sz; i++){
+    pt_release.x += pts.get(i).x;
+    pt_release.y += pts.get(i).y;
+
+    println("release x:"+  pts.get(i).x + 
+            " y:" +  pts.get(i).y + 
+            " strength:" + pts.get(i).strength + 
+            " t:" + pts.get(i).t );
+  }
+  release_dt =  pts.get(sz).t - pts.get(release_idx).t;
+  println("RELEASE x:"+ pt_release.x + " y:" + pt_release.y + " dt:" + release_dt );
+  
+  int st_pos = release_idx - 5;
+  if( st_pos < 0 ){
+    st_pos=0;
+  }
+  for(int i=st_pos; i < release_idx; i++){
+      pt_move.x += pts.get(i).x;
+      pt_move.y += pts.get(i).y;
+  }
+  println("CLICK x:"+ pt_move.x + " y:" + pt_move.y );
+  
+  for(int i=0; i<=sz; i++){
     pt_sum.x += pts.get(i).x;
     pt_sum.y += pts.get(i).y;
   }
+  println("SUM x:"+ pt_sum.x + " y:" + pt_sum.y);
+
 }
+
 
 //////////////////////////////////////////////////////
 
-void flick(int dx, int dy){
-  
-  
-  if( (dx != 0 || dy != 0) &&
-      st_flick == ST_FLICK.IDLE ){
+void flick(int dx, int dy, int status, int strength){
 
-    println("PRESS");
-    st_flick = ST_FLICK.PRESS;
-    dir = "";
-    tx_dir = "";
+  float fric_limit = slider_fric_limit.getValue();
+  float FRIC_TIME = slider_fric_time.getValue();
+  float CLICK_LIMIT = slider_click.getValue();
+  float CLICK_TIME = slider_click_time.getValue();
+
+  
+  if( st_flick == ST_FLICK.IDLE ){
     
-    pts.clear();
-    pts.add( new Point(dx,dy) );
+    if( status > 0){
+      println("PRESS");
+      st_flick = ST_FLICK.PRESS;
+      dir = "";
+      tx_dir = "";
+      
+      pts.clear();
+      st_time = millis();
+    }
     
   }else if(st_flick == ST_FLICK.PRESS){
-    
-    if( dx == 0 && dy == 0 ){
 
-      st_flick = ST_FLICK.RELEASE;
-      flick_release_cnt = 0;
-   
-    }else{
-      pts.add( new Point(dx,dy) );
-    }
+    click_dt = millis() - st_time;    
 
-  }else if(st_flick == ST_FLICK.RELEASE){
+    if( status == 0 ){
 
-    // RELEASE CHECK
-    if( dx == 0 && dy == 0 ){
+      println("[RELEASE] delta:"+click_dt);
+      st_flick = ST_FLICK.IDLE;
 
-      flick_release_cnt++;
-      if( flick_release_cnt > FLICK_RELEASE_JUDGE_CNT ){
+      cal_sum();
 
-        println("RELEASE");
-        st_flick = ST_FLICK.WAITING;
-        st_time = millis();
-  
-        pts.add( new Point(dx,dy) );
-        
-        deltaPoint();
+      vec = sqrt(pow(pt_sum.x,2) + pow(pt_sum.y,2));
+      println("vector: " + vec);
+      
+     
+      boolean b_fric = (abs(pt_release.x) > fric_limit || abs(pt_release.y) > fric_limit)?true:false;
+
+      if( abs(pt_sum.x) < CLICK_LIMIT && 
+          abs(pt_sum.y) < CLICK_LIMIT &&
+          click_dt < CLICK_TIME &&
+          b_fric == false){
+
+        println("[CLICK]");
+        cnt[4]++;
+
+      }else if( b_fric == true &&
+                release_dt < FRIC_TIME ){
+      
+        print("[FRIC]");
         deg = atan2(pt_sum.y, pt_sum.x);
         deg = degrees(deg) * -1;
-  
         if( (deg > 135 && deg <= 180)||(deg < -135 && deg >= -180) ){
-          dir = "LEFT";
+          println("LEFT");
+          cnt[0]++;     
         }
         else if((deg >= -45 && deg < 45)){
+          println("RIGHT");
           dir = "RIGHT";
+          cnt[1]++;          
         }
         else if(deg >= 45 && deg < 135){
+          println("UP");
           dir = "UP";
+          cnt[2]++;       
         }
         else if(deg < -45 && deg > -135){
+          println("DOWN");
           dir = "DOWN";
+          cnt[3]++;             
         }
         else{
         }
-  
-        // CHECK NOISE
-        vec = sqrt(pow(pt_sum.x,2) + pow(pt_sum.y,2));
-        
-        if( vec < FLICK_THRESOULD_NOISE){
-          dir = "NOISE";
-        }
-  
-        tx_dir = dir;
-  
-        println("dx:"+pt_sum.x + " dy:"+pt_sum.y +" deg:"+deg+" dir:" + dir + " vec:"+vec);
-  
-  
-  
-        // DEBUG COUNT
-        if( tx_dir.equals( "LEFT") ){
-          cnt[0]++;
-        }else if( tx_dir.equals( "RIGHT") ){
-          cnt[1]++;
-        }else if( tx_dir.equals( "UP") ){
-          cnt[2]++;
-        }else if( tx_dir.equals( "DOWN") ){
-          cnt[3]++;
-        }else{
-          cnt[4]++;
-        }
+      
       }else{
-        //do nothing
+        println("NOISY DATA");
+      }
+
+    }else{
+
+      pts.add( new Point(dx, dy, strength) );
+
+//      if( click_dt < CLICK_TIME ){
+//        pts.add( new Point(dx, dy, strength) );
+//      }else{
+//          println("[LONG PRESSED]");
+//          st_flick = ST_FLICK.LONG_PRESS;
+//          pts.clear();
+//      }
+    }
+  
+  }else if(st_flick == ST_FLICK.LONG_PRESS){
+    
+    if( status == 0 ){
+      st_flick = ST_FLICK.IDLE;
+    }
+  }
+/*    
+    if( status == 0 ){
+      
+      println("RELEASE");
+      st_flick = ST_FLICK.IDLE;
+    
+      cal_sum();
+
+      vec = sqrt(pow(pt_sum.x,2) + pow(pt_sum.y,2));
+      println("vector: " + vec);
+      
+      float fric_limit = slider_fric_limit.getValue();
+      if( abs(pt_sum.x) > fric_limit || 
+          abs(pt_sum.y) > fric_limit ){
+            
+          println("FRIC");
+          deg = atan2(pt_sum.y, pt_sum.x);
+          deg = degrees(deg) * -1;
+          if( (deg > 135 && deg <= 180)||(deg < -135 && deg >= -180) ){
+            println("LEFT");
+            cnt[0]++;     
+          }
+          else if((deg >= -45 && deg < 45)){
+            println("RIGHT");
+            dir = "RIGHT";
+            cnt[1]++;          
+          }
+          else if(deg >= 45 && deg < 135){
+            println("UP");
+            dir = "UP";
+            cnt[2]++;       
+          }
+          else if(deg < -45 && deg > -135){
+            println("DOWN");
+            dir = "DOWN";
+            cnt[3]++;             
+          }
+          else{
+          }
+      }else{
+        if( abs(pt_move.x) < 50 && 
+            abs(pt_move.y) < 50 ){
+  
+          println("CLICK");
+          cnt[4]++;  
+        }          
       }
       
     }else{
-      flick_release_cnt = 0;
-      st_flick = ST_FLICK.PRESS;
+      pts.add( new Point(dx,dy, strength) );
     }
-    
-  }else if(st_flick == ST_FLICK.WAITING){
-    
-    if( abs( millis()-st_time) > FLICK_WAIT_MS ){
-
-      println("IDLE");
-      st_flick = ST_FLICK.IDLE;
-    }
-    
-  }else{
-    // do nothing
   }
+*/   
 }
 
 

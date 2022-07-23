@@ -71,14 +71,15 @@ void loop() {
         gesture = "dclick";
         break;
       default:
+       gesture = "none";
         break;
     }
-//    char buf[64];
-//    sprintf(buf, "{\"gesture\":\"%s\"}", gesture.c_str());
-//    Serial.println(buf);
+    char buf[64];
+    sprintf(buf, "{\"gesture\":\"%s\"}", gesture.c_str());
+    Serial.println(buf);
 
   }
-
+#if 0
 // TOUCHSTATE
   data = mtch.readReg(0x10);
 //  Serial.print("TOUCHSTATE: ");
@@ -148,6 +149,6 @@ void loop() {
     sprintf(buf, "{\"x\":%d,\"y\":%d}", 0, 0);
     Serial.println(buf);
   }
-
+#endif
   delay(20);
 }

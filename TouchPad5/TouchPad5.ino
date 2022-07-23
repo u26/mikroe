@@ -42,5 +42,7 @@ void loop() {
   IQS550::touchpad5_touch_t t;
   iqs->getTouch( &t );
   iqs->calcTouchDelta( &t, &delta );
-  delay(20);
+
+//  iqs->getSnapStatus();
+  delay(10);
 }
