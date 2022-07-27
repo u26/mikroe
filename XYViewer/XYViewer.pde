@@ -63,7 +63,11 @@ boolean flick_detected = false;
 int flick_release_cnt = 0; 
 int lf = 10;
 
-
+// axis  
+int hh;
+int wh;
+int pos_x;
+int pos_y;
 //////////////////////////////////////////////////////
 
 int w,h=1080;
@@ -81,6 +85,10 @@ void setup(){
   Ani.init(this);
   
   background(50,50,50,200);
+  hh = 1080;
+  wh = 1080;
+  pos_x= 0;
+  pos_y = 0;
 }
 
 
@@ -89,13 +97,11 @@ void setup(){
 
 void draw(){
 
-  //background(50,50,50,200);
+  background(50,50,50,1);
   
   //  color c = color(255, 204, 0);
 
-  // axis  
-  int hh = height/2;
-  int wh = width/2;
+
   strokeWeight(1);
   stroke(128);
   line(0,hh, width, hh);
@@ -113,7 +119,7 @@ void draw(){
         JSONObject json = parseJSONObject(s);
         int dx = json.getInt("x");   
         int dy = json.getInt("y");
-        int strength = json.getInt("strength");
+        //int strength = json.getInt("strength");
 
         if( !(dx==0 && dy==0)){
             print(s);
@@ -121,8 +127,11 @@ void draw(){
         push();
         fill(255);
         noStroke();
+        translate(wh,hh);
+        //pos_x += dx;
+        //pos_y += dy;
         translate( dx * scale, 
-               dy * scale );
+                   dy * scale );
       
         circle(0,0,10);
        // circle(dx,dy,10);
