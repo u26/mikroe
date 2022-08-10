@@ -1,5 +1,12 @@
 #include <Wire.h>
+
 #include "capslider2.h"
+
+//-------------
+// Library
+//-------------
+// ArduinoSTL
+
 
 //#define __DEBUG__ 1
 
@@ -13,7 +20,7 @@ uint16_t out_val;
 uint8_t out_mode;
 uint8_t cnt;
 
-
+#define LIMIT_PRESS   100
 #define EVENT_RELEASE 0x00
 #define EVENT_PRESS   0x01
 int event = 0;
@@ -28,8 +35,10 @@ int st_gesture = ST_RELEASE;
 #define LIMIT_RIGHT    60
 #define LIMIT_BOTTOM   60
 #define LIMIT_LEFT     60
-#define LIMIT_CENTER  150
+#define LIMIT_CENTER  100
 #define LIMIT_FRIC 5
+
+
 
 #define EVT_PRESS (uint8_t)0x01
 uint8_t touch_event = 0;
@@ -39,7 +48,7 @@ uint8_t touch_event = 0;
 #define T_BOTTOM  (uint8_t)0x04
 #define T_LEFT    (uint8_t)0x08
 #define T_CENTER  (uint8_t)0x10
-#define T_TAP     (uint8_t)0x20
+//#define T_TAP     (uint8_t)0x20
 uint8_t tap_code = 0;
 
 #define ST_TAP_IDLE     (uint8_t)0x01
@@ -462,377 +471,196 @@ void capsldr2_set_output ( uint8_t input_data, uint8_t output_mode )
                         CAPSLDR2_PWM_DUTY_NBYTES );
 }
 
+typedef enum {
+  FRIC_UP = 1,
+  FRIC_DOWN,
+  FRIC_RIGHT,
+  FRIC_LEFT
+} FRIC_DIR;
 
+uint8_t tkeys[2] = {0};
+int tidx = 0;
+typedef struct{
+  
+  FRIC_DIR fric;
+  uint8_t code[5];
+  
+}FRIC_PATTERN;
 
+//#define PATTERN_NUM 8
+
+FRIC_PATTERN pattern[] = {
+
+  // in to out
+  {FRIC_UP,    T_BOTTOM, T_CENTER},
+  {FRIC_LEFT,  T_RIGHT,  T_CENTER},
+  {FRIC_RIGHT, T_LEFT,   T_CENTER},
+  {FRIC_DOWN,  T_TOP,    T_CENTER},
+  // out to in
+  {FRIC_UP,    T_CENTER, T_TOP},
+  {FRIC_LEFT,  T_CENTER, T_LEFT},
+  {FRIC_RIGHT, T_CENTER, T_RIGHT},
+  {FRIC_DOWN,  T_CENTER, T_BOTTOM},
+  //out to out
+  {FRIC_DOWN,  T_TOP, T_BOTTOM},
+  {FRIC_DOWN,  T_RIGHT, T_BOTTOM},
+  {FRIC_DOWN,  T_RIGHT, T_BOTTOM},
+
+  {FRIC_UP,    T_BOTTOM, T_TOP},
+  {FRIC_UP,    T_RIGHT, T_TOP},
+  {FRIC_UP,    T_LEFT, T_TOP},
+  
+  {FRIC_RIGHT, T_BOTTOM, T_RIGHT},
+  {FRIC_RIGHT, T_TOP, T_RIGHT},
+  {FRIC_RIGHT, T_LEFT, T_RIGHT},
+  
+  {FRIC_LEFT,  T_BOTTOM, T_LEFT},
+  {FRIC_LEFT,  T_TOP, T_LEFT},
+  {FRIC_LEFT,  T_RIGHT, T_LEFT},
+
+};
 
 uint8_t getKey( int16_t* val ){
-
+  int sz = sizeof(pattern) / sizeof(FRIC_PATTERN);
   uint8_t code = 0;
-//    memset(sbuf,0,128);
-//    sprintf(sbuf, 
-//            "{prox:%d, ch1:%d, ch2:%d, ch3:%d, ch4:%d, ch5:%d, ch6:%d}",
-//            val[0],
-//            val[1],
-//            val[2],
-//            val[3],
-//            val[4],
-//            val[5],
-//            val[6]);
-//    Serial.println(sbuf);
-
-
-  if( val[0] >= LIMIT_PROX ){
-    touch_event |= EVT_PRESS;
-  }else{
-    touch_event = 0;
-  } 
+  memset(sbuf,0,128);
+  sprintf(sbuf, 
+          "{prox:%d, ch1:%d, ch2:%d, ch3:%d, ch4:%d, ch5:%d, ch6:%d}",
+          val[0],
+          val[1],
+          val[2],
+          val[3],
+          val[4],
+          val[5],
+          val[6]);
+//  Serial.println(sbuf);
+ 
+//  if( val[0] >= LIMIT_PROX ){
+//    touch_event |= EVT_PRESS;
+//  }else{
+//    touch_event = 0;
+//  }
 
   if( val[1] >= LIMIT_TOP ){
       code |= T_TOP;
+//      Serial.print(sbuf);
 //      Serial.println("TOP");
   }       
   else if( val[6] >= LIMIT_RIGHT ){
       code |= T_RIGHT;
+//      Serial.print(sbuf);
 //      Serial.println("RIGHT");
   }       
   else if( val[3] >= LIMIT_BOTTOM ){
       code |= T_BOTTOM;
+//      Serial.print(sbuf);
 //      Serial.println("BOTTOM");
   }       
   else if( val[4] >= LIMIT_LEFT ){
       code |= T_LEFT;
+//      Serial.print(sbuf);
 //      Serial.println("LEFT");
   }
-//  else if( val[5] >= LIMIT_CENTER ){  
-//      code |= T_CENTER;
-////      Serial.println("CENTER");
-//  }
-  return code;
-
-}
-
-int tap( int code ){
-
-  int detected = 0;
-
-  switch( st_tap ){
-
-    case ST_TAP_IDLE:
-    
-     if( code > 0){
-        tap_code = code;        
-        click_st_time = millis();
-        st_tap = ST_TAP_PRESS;
-//        Serial.print("[TAP START] ");
-//        Serial.println(tap_code,HEX);
-     }
-     break;
-      
-    case ST_TAP_PRESS:
-    
-      if( code == 0){
-
-//        Serial.print("[TAP RELEASE] ");
-//        Serial.println(tap_code,HEX);
-        detected = tap_code;
-        st_tap = ST_TAP_RELEASE;
-      
-      }else{
-
-        if( millis() - click_st_time > 1000 ){
-          
-            detected = tap_code;
-            st_tap = ST_TAP_LONG;
-//            Serial.print("[TAP LONG] ");
-//            Serial.println(tap_code,HEX);
-        }
-      }
-      break;
-      
-    case ST_TAP_LONG:
-      
-      if( code == 0){
-//          Serial.print("[LONG TAP RELEASE]");
-//          Serial.println(tap_code,HEX);
-          st_tap = ST_TAP_RELEASE;
-      }
-      break;
-      
-    case ST_TAP_RELEASE:
-      if( code == 0){
-        st_tap = ST_TAP_IDLE;
-      }
-      break;
+  else if( val[2] >= LIMIT_CENTER &&
+           val[5] >= LIMIT_CENTER){  
+      code |= T_CENTER;
+//      Serial.print(sbuf);
+//      Serial.println("CENTER");
   }
-  
-  return detected;
-}
 
-int max_index(int nums[], int n) {
-  
-    int max_value; 
-    int max_index;
-    int i;
 
-    max_value = nums[0];
-    max_index = 0;
 
-    for (i = 0; i < n; i++) {
-        if (nums[i] > max_value) {
-            max_value = nums[i];
-            max_index = i;
-        }
-    }
-    return max_index;
-}
-
-int min_index(int nums[], int n) {
-  
-    int value; 
-    int index;
-    int i;
-
-    value = nums[0];
-    index = 0;
-
-    for (i = 0; i < n; i++) {
-        if (nums[i] < value) {
-            value = nums[i];
-            index = i;
-        }
-    }
-    return index;
-}
-
-int diff_max_index(int nums[], int n) {
-  
-    int max_value; 
-    int max_index;
-    int i;
-    int diff;
+  // FRIC 
+  if( touch_event == 0 ){
     
-    max_value = abs(nums[0]);
-    max_index = 0;
-
-    for (i = 0; i < n; i++) {
-      diff = abs(nums[i]); 
-        if ( diff > max_value) {
-            max_value = diff;
-            max_index = i;
-        }
-    }
-    return max_index;
-}
-
-
-uint8_t fric_code=0;
-
-uint8_t fric( int16_t* new_val, int16_t* val, uint8_t code){
-
-  int16_t df_t = new_val[1] - val[1];
-  int16_t df_r = new_val[6] - val[6];
-  int16_t df_b = new_val[3] - val[3];
-  int16_t df_l = new_val[4] - val[4];
-  
-  switch( st_fric ){
-  
-    case ST_FRIC_IDLE:
-    
-      if( (touch_event & EVT_PRESS) > 0){
+    if(code > 0 ){
+      if( val[0] >= LIMIT_PROX ){
         
-//        Serial.println("[FRIC PRESS]");
-        st_time = millis();
-        st_fric = ST_FRIC_PRESS;
-        for(int i=0; i<4; i++){
-          fric_cnt[i] = 0;
-        }
-
-        fric_code=0;
+        touch_event |= EVT_PRESS;
+        tkeys[0] = code;
+        tkeys[1] = code;
+        
+//        Serial.print("[PRESS]");
+//        Serial.println(tkeys[0], HEX);
       }
-      break;
+    }
+
+  }else{
+    
+    if( val[0] >= LIMIT_PROX ){
       
-    case ST_FRIC_PRESS:
+      if(code > 0){
+        tkeys[1] = code;
+//        Serial.println(tkeys[1],HEX);
+      }
+    }
+    else{
 
-      fric_cnt[0] += df_t;
-      fric_cnt[1] += df_r;
-      fric_cnt[2] += df_b;
-      fric_cnt[3] += df_l;
-//      fric_cnt[0] += abs(df_t);
-//      fric_cnt[1] += abs(df_r);
-//      fric_cnt[2] += abs(df_b);
-//      fric_cnt[3] += abs(df_l);
-      
-      if( touch_event == 0 ){
-
-        long delta_time = millis() - st_time;
-        st_fric = ST_FRIC_DETECT;
-
-        sprintf(sbuf, 
-                "[RELEASE]: T:%d R:%d B:%d L:%d %d ms ",
-                fric_cnt[0],
-                fric_cnt[1],
-                fric_cnt[2],
-                fric_cnt[3],
-                delta_time);
-        Serial.print(sbuf);
-
-        int idx = max_index(fric_cnt, 4);
-        if( fric_cnt[idx] > LIMIT_FRIC ){
-          Serial.print( "[FRIC] ");
-          switch(idx){
-            case 0: Serial.println( "TOP");     code = T_TOP;       break;
-            case 1: Serial.println( "RIGHT");   code = T_RIGHT;    break;
-            case 2: Serial.println( "BOTTOM");  code = T_BOTTOM;    break;
-            case 3: Serial.println( "LEFT");    code = T_LEFT;      break;
+      touch_event = 0;
+//      sprintf(sbuf, 
+//              "[RELEASE] %x %x}",tkeys[0], tkeys[1]);
+//      Serial.println(sbuf);
+      int detect = 0;
+      for(int i=0; i<sz; i++){
+  
+        if( pattern[i].code[0] == tkeys[0] &&
+            pattern[i].code[1] == tkeys[1]){
+            
+          switch( pattern[i].fric){
+            case FRIC_UP:
+              Serial.println("[FRIC] UP");
+              break;
+            case FRIC_DOWN:
+              Serial.println("[FRIC] DOWN");
+              break;
+            case FRIC_LEFT:
+              Serial.println("[FRIC] LEFT");
+              break;
+            case FRIC_RIGHT:
+              Serial.println("[FRIC] RIGHT");
+              break;
             default:
               break;
           }
-
-        }else{
-          if(fric_code != 0 ){
-            Serial.print( "[TAP] ");
-            switch(fric_code){
-              case 1: Serial.println( "TOP");     code = T_TOP;       break;
-              case 2: Serial.println( "RIGHT");   code = T_RIGHT;    break;
-              case 4: Serial.println( "BOTTOM");  code = T_BOTTOM;    break;
-              case 8: Serial.println( "LEFT");    code = T_LEFT;      break;
-              default:
-                Serial.println( "UNKOWN");
-                break;
-            }
-          }else{
-            Serial.println( "");
-          }
-        }
-      }else{
-        
-        // remember tap code
-        if(code != 0 ){
-//          if(fric_code ==0){
-//            Serial.println( "[TAP START]");
-//          }
-          fric_code = code;
+          detect = 1;
+          break;
         }
       }
-      break;
       
-    case ST_FRIC_DETECT:
-//      if( new_val[0] <= 0 ){
-        st_fric = ST_FRIC_IDLE;
-//      }
-      break;
+      if(detect == 0){
+        if( tkeys[1] == tkeys[0]){
+          switch( tkeys[0] ){
+            case T_TOP:
+              Serial.println("[TAP] UP");
+              break;
+            case T_BOTTOM:
+              Serial.println("[TAP] BOTTOM");
+              break;
+            case T_LEFT:
+              Serial.println("[TAP] LEFT");
+              break;
+            case T_RIGHT:
+              Serial.println("[TAP] RIGHT");
+              break;
+            case T_CENTER:
+              Serial.println("[TAP] CENTER");
+              break;
+            default:
+              break;
+          }
+        }
+      }
       
-    default:
-      break;
+      tkeys[0] = 0;
+      tkeys[1] = 0;
+    }
   }
+
   
   return code;
 }
 
-/*
-uint8_t fric( int16_t* new_val, int16_t* val ){
 
-  uint8_t code = 0;
-  int16_t df_t = new_val[1] - val[1];
-  int16_t df_r = new_val[6] - val[6];
-  int16_t df_b = new_val[3] - val[3];
-  int16_t df_l = new_val[4] - val[4];
-  
-  switch( st_fric ){
-  
-    case ST_FRIC_IDLE:
-    
-      if( (touch_event & EVT_PRESS) > 0){
-        
-        Serial.println("[FRIC PRESS]");
-        st_time = millis();
-        st_fric = ST_FRIC_PRESS;
-        for(int i=0; i<4; i++){
-          fric_cnt[i] = 0;
-        }
-      }
-      break;
-      
-    case ST_FRIC_PRESS:
-
-      fric_cnt[0] += df_t;
-      fric_cnt[1] += df_r;
-      fric_cnt[2] += df_b;
-      fric_cnt[3] += df_l;
-//      fric_cnt[0] += abs(df_t);
-//      fric_cnt[1] += abs(df_r);
-//      fric_cnt[2] += abs(df_b);
-//      fric_cnt[3] += abs(df_l);
-      
-      if( touch_event == 0 ){
-
-        long delta_time = millis() - st_time;
-        st_fric = ST_FRIC_DETECT;
-//
-//        sprintf(sbuf, 
-//                "[RELEASE]: T:%d R:%d B:%d L:%d",
-//                fric_cnt[0],
-//                fric_cnt[1],
-//                fric_cnt[2],
-//                fric_cnt[3]);
-//        Serial.println(sbuf);
-        
-        if( fric_cnt[0] <= 0 && 
-            fric_cnt[1] <= 0 &&
-            fric_cnt[2] <= 0 &&
-            fric_cnt[3] <= 0 ){
-              
-//          Serial.print( "[FRIC] :");
-//          Serial.print( delta_time );
-//          Serial.print( "ms  ");
-//          Serial.println( "TAP");
-//          code = T_TAP;
-//          
-        }else{
-
-          int idx = max_index(fric_cnt, 4);
-          
-          sprintf(sbuf, 
-          "[RELEASE]: T:%d R:%d B:%d L:%d ",
-          fric_cnt[0],
-          fric_cnt[1],
-          fric_cnt[2],
-          fric_cnt[3]);
-          Serial.print(sbuf);
-            
-          if( fric_cnt[idx] > LIMIT_FRIC ){ 
-
-            Serial.print( delta_time );
-            Serial.print( "ms  ");
-            
-            switch(idx){
-              case 0: Serial.println( "TOP");     code = T_TOP;       break;
-              case 1: Serial.println( "RIGHT");   code = T_RIGHT;    break;
-              case 2: Serial.println( "BOTTOM");  code = T_BOTTOM;    break;
-              case 3: Serial.println( "LEFT");    code = T_LEFT;      break;
-              default:
-                break;
-            }
-          }else{
-            Serial.println( "UNKOWN");
-          }
-        }
-      }      
-      break;
-      
-    case ST_FRIC_DETECT:
-//      if( val[0]<= 0 ){
-        st_fric = ST_FRIC_IDLE;
-//      }
-      break;
-      
-    default:
-      break;
-  }
-  
-  return code;
-}
-*/
 
 void Counts(){
 
@@ -875,15 +703,15 @@ void Counts(){
 //    sens_val[i] = A*sens_val[i] + (1-A)*(float)rc_val[i];
   }
 
-  //Serial.println(sens_val[0]);
-  if( sens_val[0] >= 100 ){
+//  Serial.println(sens_val[0]);
+  if( sens_val[0] >= LIMIT_PRESS ){
     event = EVENT_PRESS;
   }else{
     event = EVENT_RELEASE;
   }
 
 #ifdef __DEBUG__    
-  if( sens_val[0] >= 100 ){
+  if( sens_val[0] >= LIMIT_PRESS ){
 
     memset(sbuf,0,128);
     sprintf(sbuf, 
@@ -904,34 +732,17 @@ void Counts(){
 
 
 
+
+
 void loop() {
 
   Counts();
 
 #ifndef __DEBUG__ 
-
-  if( event == EVENT_PRESS ){
-   
-    uint8_t code = getKey(sens_val);
-
-//    int detected = tap(code);
-//    switch( detected ){
-//    case T_TOP:     Serial.println( "[TAP]  TOP");    break;
-//    case T_RIGHT:   Serial.println( "[TAP]  RIGHT");  break;
-//    case T_BOTTOM:  Serial.println( "[TAP]  BOTTOM"); break;
-//    case T_LEFT:    Serial.println( "[TAP]  LEFT");   break;
-//    default:
-//      break;
-//    }
-
-//    tap(code,sens_val);
-    
-    uint8_t fcode = fric(sens_val, val_old, code);
-//    uint8_t fcode = fric(sens_val, val_old);
-    for(int i=0; i<8; i++){
-      val_old[i] = sens_val[i];
-    }
-  }
+//  if( event == EVENT_PRESS ){
+  uint8_t code = getKey(sens_val);
+//  }
 #endif
+
 //  delay(10);
 }
