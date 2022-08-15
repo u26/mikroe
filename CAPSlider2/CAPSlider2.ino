@@ -521,6 +521,7 @@ FRIC_PATTERN pattern[] = {
 };
 
 uint8_t getKey( int16_t* val ){
+  
   int sz = sizeof(pattern) / sizeof(FRIC_PATTERN);
   uint8_t code = 0;
   memset(sbuf,0,128);
@@ -730,17 +731,71 @@ void Counts(){
 
 }
 
+#define PRESS_OFF 0
+#define PRESS_ON  1
+#define PRESS_WAIT  2
 
+int st_press_sens = PRESS_OFF;
+long timer_press=0;
+
+void getPress(){
+  
+  int ret=0;
+  int press_val = analogRead(A0);
+
+  switch(st_press_sens){
+    
+    case PRESS_OFF:
+
+      if(press_val > 70){
+
+        memset(sbuf,0,128);
+        sprintf(sbuf, 
+                  "[Press] %d",
+                  press_val);
+        Serial.println(sbuf);
+        
+        st_press_sens = PRESS_ON;
+  
+        tkeys[0] = 0;
+        tkeys[1] = 0;
+      }
+      break;
+      
+    case PRESS_ON:
+
+      if(press_val < 5){
+         Serial.println("[RELEASE]");
+        st_press_sens = PRESS_OFF;
+      }
+
+//      if(press_val < 5){
+//        st_press_sens = PRESS_WAIT;
+//        timer_press = millis();
+//      }
+      break;
+      
+    case PRESS_WAIT:
+      if( millis()-timer_press > 300){
+        st_press_sens = PRESS_OFF;
+      }
+      break;      
+    default:
+      break;
+  }
+}
 
 
 
 void loop() {
 
+  getPress();
   Counts();
+  getKey(sens_val);
 
 #ifndef __DEBUG__ 
 //  if( event == EVENT_PRESS ){
-  uint8_t code = getKey(sens_val);
+//  uint8_t code = getKey(sens_val);
 //  }
 #endif
 
