@@ -310,7 +310,8 @@ class IQS550{
 
 
 //#define TOUCH_THRESHOLD             (1600)
-#define TOUCH_THRESHOLD             (1200)
+//#define TOUCH_THRESHOLD             (1200)
+#define TOUCH_THRESHOLD             (1000)
 
 #define ST_RELEASED 0
 #define ST_PRESSED   1

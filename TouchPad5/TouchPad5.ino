@@ -26,7 +26,7 @@ IQS550::position_t old_pos;
 int st_flick = ST_RELEASED;
 
 // lowpass filter(RC Filter)
-//a = 1/(2ƒÎ¥fc¥dt + 1)      fc [Hz]  dt[s] sampling cycle
+//a = 1/(2ï¿½Î¥fcï¿½dt + 1)      fc [Hz]  dt[s] sampling cycle
 #define a 0.8     // 0 < a < 1.0(strong)
 float rc_x=0;          
 float rc_y=0;          
@@ -115,7 +115,7 @@ void flick_main( IQS550::touchpad5_touch_t* t ){
       if( t->x_pos != 0 && 
           t->y_pos != 0){
         
-        if( t->touch_strength > TOUCH_THRESHOLD ){
+        if( t->touch_strength >TOUCH_THRESHOLD ){
   
           st_flick = ST_PRESSED;
           old_pos.x = t->x_pos;
@@ -124,6 +124,16 @@ void flick_main( IQS550::touchpad5_touch_t* t ){
 
           pts.clear();
           st_time = millis();
+
+//          Serial.println("START");
+        }else{
+
+//          sprintf( sbuf, 
+//          "{\"x\":%d,\"y\":%d,\"strength\":%d}", 
+//            t->x_pos, 
+//            t->y_pos, 
+//            t->touch_strength);
+//          Serial.println(sbuf);
         }
       }
       break;
@@ -198,7 +208,7 @@ void flick_main( IQS550::touchpad5_touch_t* t ){
 }
 
 void flic_calc(){
-
+  //Serial.println("flic_calc");
   pt_sum.x = 0;
   pt_sum.y = 0;
   pt_move.x = 0;
