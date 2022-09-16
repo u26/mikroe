@@ -738,23 +738,27 @@ void Counts(){
 int st_press_sens = PRESS_OFF;
 long timer_press=0;
 
+#define PRESS_LIMIT   60 //70
+#define RELEASE_LIMIT 50 //5
+
 void getPress(){
   
   int ret=0;
   int press_val = analogRead(A0);
+  
+//    memset(sbuf,0,128);
+//    sprintf(sbuf, 
+//              "%d ",
+//              press_val);
+//    Serial.print(sbuf);
 
   switch(st_press_sens){
     
     case PRESS_OFF:
 
-      if(press_val > 70){
+      if(press_val > PRESS_LIMIT){
 
-        memset(sbuf,0,128);
-        sprintf(sbuf, 
-                  "[Press] %d",
-                  press_val);
-        Serial.println(sbuf);
-        
+        Serial.println("[PRESS]");
         st_press_sens = PRESS_ON;
   
         tkeys[0] = 0;
@@ -764,7 +768,7 @@ void getPress(){
       
     case PRESS_ON:
 
-      if(press_val < 5){
+      if(press_val < RELEASE_LIMIT){
          Serial.println("[RELEASE]");
         st_press_sens = PRESS_OFF;
       }
