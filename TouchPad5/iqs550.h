@@ -322,8 +322,11 @@ public:
   
   typedef struct
   {
-     uint16_t x;
-     uint16_t y;
+     int16_t x;
+     int16_t y;
+     int16_t strength;
+     long t;
+     
   }position_t;
 
   typedef struct
@@ -394,7 +397,7 @@ public:
   ~IQS550();
   void setup(); 
   void getTouch( touchpad5_touch_t *touch_data );
-  void calcTouchDelta( touchpad5_touch_t *touch, position_t* delta );
+  void calcTouchDelta( touchpad5_touch_t *touch );
   void getSnapStatus();
 
 private:

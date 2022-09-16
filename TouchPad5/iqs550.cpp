@@ -183,7 +183,7 @@ void IQS550::getTouch( touchpad5_touch_t *t )
 char buf[64]={0};
 int16_t dx_avg, dy_avg=0;
 
-void IQS550::calcTouchDelta( touchpad5_touch_t *t, position_t* delta ) 
+void IQS550::calcTouchDelta( touchpad5_touch_t *t ) 
 {
   int16_t dx,dy=0;
 
