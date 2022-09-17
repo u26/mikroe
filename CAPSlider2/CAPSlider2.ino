@@ -631,24 +631,24 @@ uint8_t getKey( int16_t* val ){
       if(detect == 0){
         if( tkeys[1] == tkeys[0]){
           switch( tkeys[0] ){
-            case T_TOP:
-              Serial.println("[TAP] UP");
-      break;
-            case T_BOTTOM:
-              Serial.println("[TAP] BOTTOM");
-      break;
-            case T_LEFT:
-              Serial.println("[TAP] LEFT");
-      break;
-            case T_RIGHT:
-              Serial.println("[TAP] RIGHT");
-              break;
-            case T_CENTER:
-              Serial.println("[TAP] CENTER");
-      break;
-              default:
-                break;
-            }
+          case T_TOP:
+            Serial.println("[TAP] UP");
+            break;
+          case T_BOTTOM:
+            Serial.println("[TAP] BOTTOM");
+            break;
+          case T_LEFT:
+            Serial.println("[TAP] LEFT");
+            break;
+          case T_RIGHT:
+            Serial.println("[TAP] RIGHT");
+            break;
+//       case T_CENTER:
+//            Serial.println("[TAP] CENTER");
+//            break;
+          default:
+            break;
+          }
         }
       }      
       
