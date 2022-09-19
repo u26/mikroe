@@ -38,7 +38,7 @@ Vector<IQS550::position_t> pts(pt_buf);
 #define FRIC_LIMIT 100  // delta xy
 #define CLICK_LIMIT 100 // delta xy
 #define CLICK_TIME 500 // ms
-#define FRIC_TIME 200  // ms
+#define FRIC_TIME 300  // ms
 
 IQS550::position_t pt_sum;
 IQS550::position_t pt_move;
@@ -56,8 +56,8 @@ long click_dt;
 int st_press_sens = PRESS_OFF;
 long timer_press=0;
 
-#define PRESS_LIMIT   100 //70
-#define RELEASE_LIMIT 50 //5
+#define PRESS_LIMIT   200//100 //70
+#define RELEASE_LIMIT 150 //50 //5
 
 //-------------
 // functions
@@ -301,41 +301,71 @@ void flic_calc(){
   Serial.println(sbuf);
 #endif
 
-  float vec = sqrt(pow(pt_sum.x,2) + pow(pt_sum.y,2));
+  float _v = sqrt(pow(pt_sum.x,2) + pow(pt_sum.y,2));
+#if DEBUG_FLICK
+  sprintf(
+    sbuf, 
+    "vector %d", 
+     (int)_v);
+  Serial.println(sbuf);
+#endif
+
+//  if( abs(pt_release.x) > FRIC_LIMIT || 
+//      abs(pt_release.y) > FRIC_LIMIT ){
+
+  if( _v > FRIC_LIMIT ){
+    if( release_dt < FRIC_TIME ){
+      
+      float _deg = atan2(pt_sum.y, pt_sum.x);
+      int deg = degrees(_deg) * -1;
 
 #if DEBUG_FLICK
   sprintf(
     sbuf, 
-    "vector %f", 
-     vec);
+    "deg:%d", 
+    deg);
   Serial.println(sbuf);
 #endif
 
-  if( abs(pt_release.x) > FRIC_LIMIT || 
-      abs(pt_release.y) > FRIC_LIMIT ){
 
-    if( release_dt < FRIC_TIME ){
-      
-      int deg = atan2(pt_sum.y, pt_sum.x);
-      deg = degrees(deg) * -1;
-      
-      if( (deg > 135 && deg <= 180)||(deg < -135 && deg >= -180) ){
+#define DEG_135  135
+#define DEG_115  115
+#define DEG_45  45
+
+      if( (deg > DEG_115 && deg <= 180)||(deg < -DEG_115 && deg >= -180) ){
         Serial.println("[FRIC] LEFT");
       }
-      else if((deg >= -45 && deg < 45)){
+      else if((deg >= -DEG_45 && deg < DEG_45)){
         Serial.println("[FRIC] RIGHT");
       }
-      else if(deg >= 45 && deg < 135){
+      else if(deg >= DEG_45 && deg < DEG_115){
         Serial.println("[FRIC] UP");
       }
-      else if(deg < -45 && deg > -135){
+      else if(deg < -DEG_45 && deg > -DEG_115){
         Serial.println("[FRIC] DOWN");
       }
       else{
         Serial.println("[FRIC] ERROR");
       }
+
+      
+//      if( (deg > 135 && deg <= 180)||(deg < -135 && deg >= -180) ){
+//        Serial.println("[FRIC] LEFT");
+//      }
+//      else if((deg >= -45 && deg < 45)){
+//        Serial.println("[FRIC] RIGHT");
+//      }
+//      else if(deg >= 45 && deg < 135){
+//        Serial.println("[FRIC] UP");
+//      }
+//      else if(deg < -45 && deg > -135){
+//        Serial.println("[FRIC] DOWN");
+//      }
+//      else{
+//        Serial.println("[FRIC] ERROR");
+//      }
     }else{
-        Serial.println("[FRIC] unknown");
+        Serial.println("[FRIC] time out");
     }
 
   }else{

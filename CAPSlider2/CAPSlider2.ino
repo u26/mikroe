@@ -738,8 +738,8 @@ void Counts(){
 int st_press_sens = PRESS_OFF;
 long timer_press=0;
 
-#define PRESS_LIMIT   60 //70
-#define RELEASE_LIMIT 50 //5
+#define PRESS_LIMIT   100 //70
+#define RELEASE_LIMIT 80 //5
 
 void getPress(){
 
@@ -750,7 +750,7 @@ void getPress(){
 //    sprintf(sbuf, 
 //              "%d ",
 //              press_val);
-//    Serial.print(sbuf);
+//    Serial.println(sbuf);
    
   switch(st_press_sens){
 
